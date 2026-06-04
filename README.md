@@ -1,126 +1,114 @@
 # ViT-CORE
 
-Vision Transformer (ViT) implementation and training pipeline using PyTorch in Google Colab.
+A weighted dual-view Vision Transformer pipeline for deepfake detection, built in PyTorch and designed to run in Google Colab.
 
----
+## Architecture
 
-## Overview
-
-This project implements a Vision Transformer model and demonstrates an end-to-end workflow including data loading, preprocessing, training, and evaluation.
-
-The project is designed for experimentation and understanding transformer-based architectures in computer vision.
-
----
+- **Model:** ViT-Small (patch16/224) via timm, pretrained on ImageNet
+- **Training:** Dual-view with cross-entropy + consistency loss (MSE or cosine)
+- **Augmentations:** RaAug (view 1) and DFDCselim (view 2)
+- **Evaluation:** AUC, TDR@0.1, TDR@0.01, confusion matrix, ROC curves
+- **Environment:** Google Colab (GPU recommended)
 
 ## Project Structure
 
 ```
-.
-├── ViT-CORE.ipynb   # Main notebook
-├── README.md        # Documentation
+ViT-CORE/
+├── ViT-CORE.ipynb    # Colab orchestration notebook
+├── train.py          # Training loop with CLI args
+├── evaluate.py       # Evaluation across all datasets
+├── datasets.py       # TrainDataset and TestDataset
+├── augmentations.py  # RaAug and DFDCselim transforms
+├── loss.py           # Consistency loss functions
+├── metrics.py        # AUC and TDR computation
+├── README.md
+└── LICENSE
 ```
 
----
+## Setup
 
-## Getting Started
+### 1. Clone the repo and open the notebook
 
-### 1. Open in Google Colab
+Upload or clone this repo to Google Drive, then open `ViT-CORE.ipynb` in Google Colab.
 
-* Go to Google Colab
-* Upload `ViT-CORE.ipynb`
-* Open and run the notebook
-
----
-
-### 2. Install Dependencies
-
-Run inside Colab:
-
-```
-pip install torch torchvision numpy matplotlib
-```
-
----
-
-## Dataset Setup (Important)
-
-This project originally uses datasets stored in Google Drive.
-
-If you are running this yourself, you will need to:
-
-### Option 1 — Use Your Own Dataset
-
-1. Upload your dataset to Colab or Google Drive
-2. Update file paths in the notebook
-
-Example:
-
-```python
-data_path = "/your/path/to/dataset"
-```
-
----
-
-### Option 2 — Mount Google Drive
-
-If using Google Drive:
+### 2. Mount Google Drive
 
 ```python
 from google.colab import drive
 drive.mount('/content/drive')
 ```
 
-Then update paths accordingly.
+### 3. Clone DeiT and install dependencies
 
----
+```bash
+git clone https://github.com/facebookresearch/deit.git
+pip install timm submitit opencv-python torch torchvision scikit-learn seaborn
+```
 
-## How to Run
+### 4. Copy modules into the DeiT directory
 
-Run all cells in order:
+The notebook handles this automatically via the setup cell.
 
-1. Load dataset
-2. Build model
-3. Train model
-4. Evaluate results
+### 5. Add your datasets to Google Drive
 
----
+> **Note on paths:** All paths below reflect the folder structure used during development. You will need to update them to match your own Google Drive layout. Anywhere you see `/content/drive/MyDrive/...`, replace it with the actual path to your data.
 
-## Results
+Organise your datasets in Drive using this structure (or adjust the paths in `evaluate.py` to match your own):
 
-The notebook includes:
+```
+MyDrive/<your-datasets-folder>/
+├── ffpp/
+│   ├── train_filtered.csv
+│   ├── val_filtered.csv
+│   ├── test_filtered.csv
+│   └── train/  val/  test/
+├── celebdf/
+├── dfdc/
+└── wilddeepfake/
+```
 
-* Training loss
-* Accuracy metrics
-* Model predictions
+Each CSV must have `path` and `label` columns (0 = real, 1 = fake). The `path` column should be relative to the dataset's root directory.
 
----
+## Training
 
-## Technologies Used
+Replace the paths below with your own before running:
 
-* Python
-* PyTorch
-* NumPy
-* Matplotlib
-* Google Colab
+```bash
+python train.py \
+  --train-csv "/content/drive/MyDrive/<your-datasets-folder>/ffpp/train_filtered.csv" \
+  --train-dir "/content/drive/MyDrive/<your-datasets-folder>/ffpp/train" \
+  --val-csv   "/content/drive/MyDrive/<your-datasets-folder>/ffpp/val_filtered.csv" \
+  --val-dir   "/content/drive/MyDrive/<your-datasets-folder>/ffpp/val" \
+  --output-dir "/content/drive/MyDrive/<your-experiments-folder>/ffpp_vitcore" \
+  --epochs 30 \
+  --batch-size 32 \
+  --lr 1e-4 \
+  --lambda-consistency 5
+```
 
----
+Checkpoints and a loss log CSV are saved to `--output-dir` automatically.
 
-## Limitations
+## Evaluation
 
-* Dataset is not included in the repository
-* Paths must be configured manually
-* Notebook-based (not modularized yet)
+Replace the paths below with your own before running:
 
----
+```bash
+python evaluate.py \
+  --checkpoint "/content/drive/MyDrive/<your-experiments-folder>/ffpp_vitcore/vitcore_best.pth" \
+  --output-dir "/content/drive/MyDrive/<your-experiments-folder>/charts" \
+  --log-path   "/content/drive/MyDrive/<your-experiments-folder>/ffpp_vitcore/vitcore_losses.csv"
+```
 
-## Future Improvements
+Runs evaluation on FF++, Celeb-DF, DFDC-Preview, and WildDeepfake. Saves ROC curves, confusion matrices, and score distribution plots.
 
-* Convert notebook into modular Python scripts
-* Add dataset loader abstraction
-* Improve reproducibility
-* Add pretrained weights
+> **Note:** Dataset paths for each evaluation split are defined at the top of `evaluate.py` under `DATASET_CONFIGS`. Update those entries to point to your own test CSVs and directories.
 
----
+## Requirements
+
+- Google Colab (GPU recommended, free tier works)
+- Python 3.10+
+- PyTorch, torchvision, timm, scikit-learn, seaborn, tqdm
+- Datasets stored in Google Drive (not included)
 
 ## License
 
