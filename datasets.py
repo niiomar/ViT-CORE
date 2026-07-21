@@ -6,7 +6,6 @@ from torch.utils.data import Dataset
 
 VALID_EXTS = (".png", ".jpg", ".jpeg")
 
-
 def _load_samples_from_csv(csv_path, root_dir):
     samples = []
     df = pd.read_csv(csv_path)
@@ -26,7 +25,6 @@ def _load_samples_from_csv(csv_path, root_dir):
                 samples.append((p, label))
     return samples
 
-
 def _safe_open(path, idx, samples):
     try:
         return Image.open(path).convert("RGB")
@@ -34,7 +32,6 @@ def _safe_open(path, idx, samples):
         print(f"[!] Skipping unreadable image: {path}")
         next_idx = (idx + 1) % len(samples)
         return Image.open(samples[next_idx][0]).convert("RGB")
-
 
 class TrainDataset(Dataset):
     """Dual-view dataset for training with two augmentation transforms."""
@@ -54,7 +51,6 @@ class TrainDataset(Dataset):
         v1 = self.transform1(img)
         v2 = self.transform2(img) if self.transform2 else None
         return (v1, v2) if v2 is not None else v1, label
-
 
 class TestDataset(Dataset):
     """Single-view dataset for evaluation."""
