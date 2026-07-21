@@ -13,10 +13,8 @@ from torchvision import transforms
 from sklearn.metrics import roc_auc_score, roc_curve, auc, accuracy_score, confusion_matrix
 from tqdm.auto import tqdm
 from timm.models import vit_small_patch16_224
-
 from datasets import TestDataset
 from metrics import compute_tdr
-
 
 DATASET_CONFIGS = {
     "FF++ (In-Domain)": {
@@ -43,7 +41,6 @@ TEST_TRANSFORM = transforms.Compose([
     transforms.Normalize(mean=[0.5]*3, std=[0.5]*3),
 ])
 
-
 def load_model(checkpoint_path, device):
     model = vit_small_patch16_224(pretrained=False, num_classes=2)
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
@@ -52,7 +49,6 @@ def load_model(checkpoint_path, device):
     model.to(device)
     model.eval()
     return model
-
 
 def get_predictions(model, loader, device):
     labels, scores, preds = [], [], []
@@ -65,7 +61,6 @@ def get_predictions(model, loader, device):
             preds.extend(torch.argmax(out, 1).cpu().numpy())
             labels.extend(lbls.numpy())
     return np.array(labels), np.array(scores), np.array(preds)
-
 
 def plot_roc_curves(roc_results, output_dir):
     plt.style.use("seaborn-v0_8-whitegrid")
@@ -86,7 +81,6 @@ def plot_roc_curves(roc_results, output_dir):
     plt.savefig(os.path.join(output_dir, "roc_curves.png"), dpi=300)
     plt.show()
 
-
 def plot_confusion_matrix(labels, preds, name, output_dir):
     cm = confusion_matrix(labels, preds)
     cm_df = pd.DataFrame(cm, index=["Real", "Fake"], columns=["Real", "Fake"])
@@ -99,7 +93,6 @@ def plot_confusion_matrix(labels, preds, name, output_dir):
     fname = name.lower().replace(" ", "_").replace("(", "").replace(")", "") + "_cm.png"
     plt.savefig(os.path.join(output_dir, fname), dpi=300)
     plt.show()
-
 
 def plot_score_distribution(labels, scores, name, output_dir):
     real = scores[labels == 0]
@@ -118,7 +111,6 @@ def plot_score_distribution(labels, scores, name, output_dir):
     plt.savefig(os.path.join(output_dir, fname), dpi=300)
     plt.show()
 
-
 def plot_training_curves(log_path, output_dir, max_epoch=None):
     df = pd.read_csv(log_path)
     if max_epoch:
@@ -136,7 +128,6 @@ def plot_training_curves(log_path, output_dir, max_epoch=None):
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "training_curves.png"), dpi=300)
     plt.show()
-
 
 def main():
     p = argparse.ArgumentParser()
@@ -158,7 +149,7 @@ def main():
         loader = DataLoader(ds, batch_size=args.batch_size, shuffle=False, num_workers=2)
 
         labels, scores, preds = get_predictions(model, loader, device)
-
+        
         acc = accuracy_score(labels, preds)
         auc_score = roc_auc_score(labels, scores)
         tdr01 = compute_tdr(labels, scores, 0.1)
