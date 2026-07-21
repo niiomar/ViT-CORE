@@ -23,7 +23,6 @@ from metrics import compute_tdr
 from loss import consistency_loss_mse, consistency_loss_cosine
 from sklearn.metrics import roc_auc_score
 
-
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--train-csv", type=str, required=True)
@@ -39,12 +38,10 @@ def parse_args():
     p.add_argument("--seed", type=int, default=42)
     return p.parse_args()
 
-
 def set_seed(seed):
     torch.manual_seed(seed)
     random.seed(seed)
     np.random.seed(seed)
-
 
 def load_checkpoint(path, model, optimizer, device):
     if not os.path.exists(path):
@@ -54,7 +51,6 @@ def load_checkpoint(path, model, optimizer, device):
     optimizer.load_state_dict(ckpt["optimizer_state_dict"])
     return ckpt.get("epoch", 0), ckpt.get("best_auc", 0.0)
 
-
 def save_checkpoint(path, model, optimizer, epoch, best_auc, **extra):
     torch.save({
         "epoch": epoch,
@@ -63,7 +59,6 @@ def save_checkpoint(path, model, optimizer, epoch, best_auc, **extra):
         "best_auc": best_auc,
         **extra
     }, path)
-
 
 def main():
     args = parse_args()
@@ -179,7 +174,6 @@ def main():
             csv.writer(f).writerow([epoch+1, round(total_loss, 4), round(total_ce, 4),
                                     round(total_cons, 4), round(acc, 2),
                                     round(val_auc, 4), round(tdr01, 4), round(tdr001, 4)])
-
 
 if __name__ == "__main__":
     main()
