@@ -4,7 +4,6 @@ from io import BytesIO
 from PIL import Image
 from torchvision import transforms
 
-
 class RandomJPEGCompression:
     def __init__(self, quality=(30, 100)):
         self.quality = quality
@@ -15,7 +14,6 @@ class RandomJPEGCompression:
         buf.seek(0)
         return Image.open(buf)
 
-
 class AddGaussianNoise:
     def __init__(self, mean=0., std=0.1):
         self.mean = mean
@@ -25,7 +23,6 @@ class AddGaussianNoise:
         arr = np.array(img).astype(np.float32) / 255.0
         noisy = np.clip(arr + np.random.normal(self.mean, self.std, arr.shape), 0, 1) * 255
         return Image.fromarray(noisy.astype(np.uint8))
-
 
 class RandomErasing:
     def __init__(self, p=0.5, scale=(0.02, 0.2), ratio=(0.5, 2.0)):
@@ -50,7 +47,6 @@ class RandomErasing:
                 arr[top:top+eh, left:left+ew] = 0
                 break
         return Image.fromarray(arr)
-
 
 def get_transform(name):
     if name == 'raaug':
