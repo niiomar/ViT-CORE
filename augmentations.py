@@ -68,7 +68,9 @@ def get_transform(name):
             transforms.RandomApply([AddGaussianNoise(mean=0, std=0.1)], p=0.3),
             transforms.RandomApply([transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))], p=0.3),
             transforms.RandomApply([transforms.RandomAffine(degrees=0, translate=(0.1, 0.1))], p=0.3),
-            transforms.RandomApply([transforms.RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(0.95, 1.05))], p=0.3),
+            transforms.RandomApply(
+                [transforms.RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(0.95, 1.05))], p=0.3
+            ),
             transforms.Resize((224, 224)),
             transforms.ToTensor(),
         ])

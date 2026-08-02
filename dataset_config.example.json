@@ -1,0 +1,18 @@
+{
+  "FF++ (In-Domain)": {
+    "csv": "/content/drive/MyDrive/<your-datasets-folder>/ffpp/test_filtered.csv",
+    "dir": "/content/drive/MyDrive/<your-datasets-folder>/ffpp/test"
+  },
+  "Celeb-DF": {
+    "csv": "/content/drive/MyDrive/<your-datasets-folder>/celebdf/test_filtered.csv",
+    "dir": "/content/drive/MyDrive/<your-datasets-folder>/celebdf/test"
+  },
+  "DFDC-P": {
+    "csv": "/content/drive/MyDrive/<your-datasets-folder>/dfdc/test_filtered.csv",
+    "dir": "/content/drive/MyDrive/<your-datasets-folder>/dfdc/test"
+  },
+  "WildDeepfake": {
+    "csv": "/content/drive/MyDrive/<your-datasets-folder>/wilddeepfake/test_filtered.csv",
+    "dir": "/content/drive/MyDrive/<your-datasets-folder>/wilddeepfake/test"
+  }
+}
