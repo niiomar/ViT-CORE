@@ -1,5 +1,7 @@
 # ViT-CORE
 
+[![CI](https://github.com/niiomar/ViT-CORE/actions/workflows/ci.yml/badge.svg)](https://github.com/niiomar/ViT-CORE/actions/workflows/ci.yml)
+
 A weighted dual-view Vision Transformer pipeline for deepfake detection, built in PyTorch and designed to run in Google Colab.
 
 ## Architecture
