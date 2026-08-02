@@ -1,7 +1,11 @@
+from typing import Sequence
+
 import numpy as np
 from sklearn.metrics import roc_auc_score, roc_curve
 
-def compute_auc(y_true, y_scores):
+
+def compute_auc(y_true: Sequence, y_scores: Sequence) -> float:
+    """ROC-AUC, degrading to 0.0 on a single-class split instead of raising or returning nan."""
     # Modern scikit-learn no longer raises on a single-class y_true — it warns
     # and returns nan instead. Guard both cases so a skewed split degrades to
     # 0.0 rather than propagating nan into logs/checkpoint comparisons.
@@ -11,7 +15,9 @@ def compute_auc(y_true, y_scores):
         return 0.0
     return 0.0 if np.isnan(score) else float(score)
 
-def compute_tdr(y_true, y_scores, fpr_threshold=0.1):
+
+def compute_tdr(y_true: Sequence, y_scores: Sequence, fpr_threshold: float = 0.1) -> float:
+    """True detection rate at the highest operating point with FPR <= fpr_threshold."""
     try:
         fpr, tpr, _ = roc_curve(y_true, y_scores)
     except ValueError:
