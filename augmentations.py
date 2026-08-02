@@ -1,36 +1,46 @@
 import random
-import numpy as np
 from io import BytesIO
+
+import numpy as np
 from PIL import Image
 from torchvision import transforms
 
+
 class RandomJPEGCompression:
+    """Re-encode the image as JPEG at a random quality level to simulate compression artifacts."""
+
     def __init__(self, quality=(30, 100)):
         self.quality = quality
 
-    def __call__(self, img):
+    def __call__(self, img: Image.Image) -> Image.Image:
         buf = BytesIO()
         img.save(buf, format="JPEG", quality=random.randint(*self.quality))
         buf.seek(0)
         return Image.open(buf)
 
+
 class AddGaussianNoise:
-    def __init__(self, mean=0., std=0.1):
+    """Add i.i.d. Gaussian noise in [0, 1] pixel space, then clip back to a valid image."""
+
+    def __init__(self, mean: float = 0.0, std: float = 0.1):
         self.mean = mean
         self.std = std
 
-    def __call__(self, img):
+    def __call__(self, img: Image.Image) -> Image.Image:
         arr = np.array(img).astype(np.float32) / 255.0
         noisy = np.clip(arr + np.random.normal(self.mean, self.std, arr.shape), 0, 1) * 255
         return Image.fromarray(noisy.astype(np.uint8))
 
+
 class RandomErasing:
-    def __init__(self, p=0.5, scale=(0.02, 0.2), ratio=(0.5, 2.0)):
+    """Zero out a random rectangular patch of the image with probability p."""
+
+    def __init__(self, p: float = 0.5, scale=(0.02, 0.2), ratio=(0.5, 2.0)):
         self.p = p
         self.scale = scale
         self.ratio = ratio
 
-    def __call__(self, img):
+    def __call__(self, img: Image.Image) -> Image.Image:
         if random.random() > self.p:
             return img
         arr = np.array(img)
@@ -48,7 +58,9 @@ class RandomErasing:
                 break
         return Image.fromarray(arr)
 
-def get_transform(name):
+
+def get_transform(name: str) -> transforms.Compose:
+    """Build the 'raaug' (view 1) or 'dfdcselim' (view 2) augmentation pipeline by name."""
     if name == 'raaug':
         def raaug(img):
             choice = random.choice(['none', 'erase', 'randcrop'])

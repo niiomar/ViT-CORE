@@ -2,19 +2,19 @@ import argparse
 import json
 import logging
 import os
+from datetime import datetime, timezone
 
 import matplotlib
 import numpy as np
 import pandas as pd
 import torch
 from sklearn.metrics import roc_curve, accuracy_score, confusion_matrix
-from timm.models import vit_small_patch16_224
 from torch.utils.data import DataLoader
-from torchvision import transforms
 from tqdm.auto import tqdm
 
 from datasets import TestDataset
 from metrics import compute_auc, compute_tdr
+from model_utils import build_eval_transform, load_inference_model, validate_paths
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -23,16 +23,13 @@ DEFAULT_DATASET_CONFIG = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "dataset_config.example.json"
 )
 
-TEST_TRANSFORM = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5]*3, std=[0.5]*3),
-])
+TEST_TRANSFORM = build_eval_transform()
 
 SHOW_PLOTS = True
 
 
-def maybe_show():
+def maybe_show() -> None:
+    """Display the current figure unless --no-show was passed, in which case just close it."""
     if SHOW_PLOTS:
         import matplotlib.pyplot as plt
         plt.show()
@@ -41,19 +38,21 @@ def maybe_show():
         plt.close()
 
 
-def load_dataset_configs(path):
+def load_dataset_configs(path: str) -> dict:
     with open(path) as f:
         return json.load(f)
 
 
-def load_model(checkpoint_path, device):
-    model = vit_small_patch16_224(pretrained=False, num_classes=2)
-    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=True)
-    state = ckpt.get("model_state_dict", ckpt.get("model", ckpt))
-    model.load_state_dict(state)
-    model.to(device)
-    model.eval()
-    return model
+def summarize_dataset_metrics(labels, scores, preds) -> dict:
+    """Compute the accuracy/AUC/TDR summary dict for one dataset's predictions."""
+    return {
+        "num_samples": int(len(labels)),
+        "accuracy": float(accuracy_score(labels, preds)),
+        "auc": float(compute_auc(labels, scores)),
+        "tdr@0.1": float(compute_tdr(labels, scores, 0.1)),
+        "tdr@0.01": float(compute_tdr(labels, scores, 0.01)),
+    }
+
 
 def get_predictions(model, loader, device):
     labels, scores, preds = [], [], []
@@ -169,11 +168,23 @@ def main():
         raise SystemExit(1)
     dataset_configs = load_dataset_configs(args.dataset_config)
 
+    validate_paths({"checkpoint": args.checkpoint})
+    validate_paths({
+        f"{name} ({key})": path
+        for name, cfg in dataset_configs.items()
+        for key, path in cfg.items()
+    })
+
     os.makedirs(args.output_dir, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = load_model(args.checkpoint, device)
+    model = load_inference_model(args.checkpoint, device)
 
     roc_results = {}
+    summary = {
+        "checkpoint": os.path.abspath(args.checkpoint),
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "datasets": {},
+    }
 
     for name, cfg in dataset_configs.items():
         logger.info(f"--- {name} ---")
@@ -183,19 +194,23 @@ def main():
 
         labels, scores, preds = get_predictions(model, loader, device)
 
-        acc = accuracy_score(labels, preds)
-        auc_score = compute_auc(labels, scores)
-        tdr01 = compute_tdr(labels, scores, 0.1)
-        tdr001 = compute_tdr(labels, scores, 0.01)
-        logger.info(f"Acc: {acc:.4f}  AUC: {auc_score:.4f}  TDR@0.1: {tdr01:.4f}  TDR@0.01: {tdr001:.4f}")
+        metrics = summarize_dataset_metrics(labels, scores, preds)
+        logger.info(f"Acc: {metrics['accuracy']:.4f}  AUC: {metrics['auc']:.4f}  "
+                    f"TDR@0.1: {metrics['tdr@0.1']:.4f}  TDR@0.01: {metrics['tdr@0.01']:.4f}")
+        summary["datasets"][name] = metrics
 
         fpr, tpr, _ = roc_curve(labels, scores)
-        roc_results[name] = {"fpr": fpr, "tpr": tpr, "auc": auc_score}
+        roc_results[name] = {"fpr": fpr, "tpr": tpr, "auc": metrics["auc"]}
 
         plot_confusion_matrix(labels, preds, name, args.output_dir)
         plot_score_distribution(labels, scores, name, args.output_dir)
 
     plot_roc_curves(roc_results, args.output_dir)
+
+    results_path = os.path.join(args.output_dir, "results.json")
+    with open(results_path, "w") as f:
+        json.dump(summary, f, indent=2)
+    logger.info(f"Wrote summary metrics to {results_path}")
 
     if args.log_path and os.path.exists(args.log_path):
         plot_training_curves(args.log_path, args.output_dir)

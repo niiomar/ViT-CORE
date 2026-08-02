@@ -28,7 +28,7 @@ jobs:
         run: ruff check .
 
       - name: Run tests
-        run: python -m pytest
+        run: python -m pytest --cov=. --cov-report=term-missing
 
       - name: Smoke-import CLI entry points
-        run: python -c "import train, evaluate; print('imports ok')"
+        run: python -c "import train, evaluate, predict, model_utils; print('imports ok')"

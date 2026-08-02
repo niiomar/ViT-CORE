@@ -5,3 +5,7 @@ extend-exclude = [".venv_test", "ViT-CORE.ipynb"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W"]
+
+[tool.coverage.run]
+source = ["."]
+omit = ["tests/*", ".venv*/*"]

@@ -1,6 +1,8 @@
-import os
 import glob
 import logging
+import os
+from typing import Callable, Optional
+
 import pandas as pd
 from PIL import Image, UnidentifiedImageError
 from torch.utils.data import Dataset
@@ -10,7 +12,13 @@ logger = logging.getLogger(__name__)
 VALID_EXTS = (".png", ".jpg", ".jpeg")
 MAX_OPEN_RETRIES = 5
 
-def _load_samples_from_csv(csv_path, root_dir):
+
+def _load_samples_from_csv(csv_path: str, root_dir: str) -> list:
+    """Read a manifest CSV (path, label) into a flat list of (image_path, label) pairs.
+
+    A `path` may point at a single image, or at a directory — in which case every
+    image file inside it is loaded with that row's label.
+    """
     samples = []
     df = pd.read_csv(csv_path)
     for row in df.itertuples(index=False):
@@ -28,7 +36,9 @@ def _load_samples_from_csv(csv_path, root_dir):
                 samples.append((p, label))
     return samples
 
-def _safe_open(path, idx, samples):
+
+def _safe_open(path: str, idx: int, samples: list) -> Image.Image:
+    """Open an image, retrying at subsequent samples if it's unreadable/corrupt."""
     next_idx = idx
     for _ in range(MAX_OPEN_RETRIES):
         try:
@@ -42,37 +52,39 @@ def _safe_open(path, idx, samples):
         f"starting from index {idx}"
     )
 
+
 class TrainDataset(Dataset):
     """Dual-view dataset for training with two augmentation transforms."""
 
-    def __init__(self, csv_path, root_dir, transform1, transform2):
+    def __init__(self, csv_path: str, root_dir: str, transform1: Callable, transform2: Optional[Callable]):
         self.transform1 = transform1
         self.transform2 = transform2
         self.samples = _load_samples_from_csv(csv_path, root_dir)
         logger.info(f"TrainDataset: {len(self.samples)} samples")
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.samples)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int):
         path, label = self.samples[idx]
         img = _safe_open(path, idx, self.samples)
         v1 = self.transform1(img)
         v2 = self.transform2(img) if self.transform2 else None
         return (v1, v2) if v2 is not None else v1, label
 
+
 class TestDataset(Dataset):
     """Single-view dataset for evaluation."""
 
-    def __init__(self, csv_path, root_dir, transform):
+    def __init__(self, csv_path: str, root_dir: str, transform: Callable):
         self.transform = transform
         self.samples = _load_samples_from_csv(csv_path, root_dir)
         logger.info(f"TestDataset: {len(self.samples)} samples")
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.samples)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int):
         path, label = self.samples[idx]
         img = _safe_open(path, idx, self.samples)
         return self.transform(img), label
