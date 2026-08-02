@@ -21,6 +21,9 @@ env/
 *.png
 *.log
 
+# Local dataset paths (personal Drive layout — keep dataset_config.example.json in git instead)
+dataset_config.json
+
 # IDE
 .vscode/
 .idea/

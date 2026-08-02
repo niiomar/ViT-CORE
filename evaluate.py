@@ -1,39 +1,27 @@
-import sys
-sys.path.append("/content/deit")
-
 import argparse
+import json
+import logging
 import os
-import torch
+
+import matplotlib
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import torch
+from sklearn.metrics import roc_curve, accuracy_score, confusion_matrix
+from timm.models import vit_small_patch16_224
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from sklearn.metrics import roc_auc_score, roc_curve, auc, accuracy_score, confusion_matrix
 from tqdm.auto import tqdm
-from timm.models import vit_small_patch16_224
-from datasets import TestDataset
-from metrics import compute_tdr
 
-DATASET_CONFIGS = {
-    "FF++ (In-Domain)": {
-        "csv": "/content/drive/MyDrive/ViT-CORE-Datasets/ffpp/test_filtered.csv",
-        "dir": "/content/drive/MyDrive/ViT-CORE-Datasets/ffpp/test",
-    },
-    "Celeb-DF": {
-        "csv": "/content/drive/MyDrive/ViT-CORE-Datasets/celebdf/test_filtered.csv",
-        "dir": "/content/drive/MyDrive/ViT-CORE-Datasets/celebdf/test",
-    },
-    "DFDC-P": {
-        "csv": "/content/drive/MyDrive/ViT-CORE-Datasets/dfdc/test_filtered.csv",
-        "dir": "/content/drive/MyDrive/ViT-CORE-Datasets/dfdc/test",
-    },
-    "WildDeepfake": {
-        "csv": "/content/drive/MyDrive/ViT-CORE-Datasets/wilddeepfake/test_filtered.csv",
-        "dir": "/content/drive/MyDrive/ViT-CORE-Datasets/wilddeepfake/test",
-    },
-}
+from datasets import TestDataset
+from metrics import compute_auc, compute_tdr
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger(__name__)
+
+DEFAULT_DATASET_CONFIG = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "dataset_config.example.json"
+)
 
 TEST_TRANSFORM = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -41,10 +29,27 @@ TEST_TRANSFORM = transforms.Compose([
     transforms.Normalize(mean=[0.5]*3, std=[0.5]*3),
 ])
 
+SHOW_PLOTS = True
+
+
+def maybe_show():
+    if SHOW_PLOTS:
+        import matplotlib.pyplot as plt
+        plt.show()
+    else:
+        import matplotlib.pyplot as plt
+        plt.close()
+
+
+def load_dataset_configs(path):
+    with open(path) as f:
+        return json.load(f)
+
+
 def load_model(checkpoint_path, device):
     model = vit_small_patch16_224(pretrained=False, num_classes=2)
-    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    state = ckpt.get("model", ckpt.get("model_state_dict", ckpt))
+    ckpt = torch.load(checkpoint_path, map_location=device, weights_only=True)
+    state = ckpt.get("model_state_dict", ckpt.get("model", ckpt))
     model.load_state_dict(state)
     model.to(device)
     model.eval()
@@ -63,6 +68,7 @@ def get_predictions(model, loader, device):
     return np.array(labels), np.array(scores), np.array(preds)
 
 def plot_roc_curves(roc_results, output_dir):
+    import matplotlib.pyplot as plt
     plt.style.use("seaborn-v0_8-whitegrid")
     plt.figure(figsize=(10, 8))
     colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
@@ -79,9 +85,11 @@ def plot_roc_curves(roc_results, output_dir):
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "roc_curves.png"), dpi=300)
-    plt.show()
+    maybe_show()
 
 def plot_confusion_matrix(labels, preds, name, output_dir):
+    import seaborn as sns
+    import matplotlib.pyplot as plt
     cm = confusion_matrix(labels, preds)
     cm_df = pd.DataFrame(cm, index=["Real", "Fake"], columns=["Real", "Fake"])
     plt.figure(figsize=(6, 5))
@@ -92,9 +100,11 @@ def plot_confusion_matrix(labels, preds, name, output_dir):
     plt.tight_layout()
     fname = name.lower().replace(" ", "_").replace("(", "").replace(")", "") + "_cm.png"
     plt.savefig(os.path.join(output_dir, fname), dpi=300)
-    plt.show()
+    maybe_show()
 
 def plot_score_distribution(labels, scores, name, output_dir):
+    import seaborn as sns
+    import matplotlib.pyplot as plt
     real = scores[labels == 0]
     fake = scores[labels == 1]
     plt.style.use("seaborn-v0_8-whitegrid")
@@ -109,9 +119,10 @@ def plot_score_distribution(labels, scores, name, output_dir):
     plt.tight_layout()
     fname = name.lower().replace(" ", "_").replace("(", "").replace(")", "") + "_scores.png"
     plt.savefig(os.path.join(output_dir, fname), dpi=300)
-    plt.show()
+    maybe_show()
 
 def plot_training_curves(log_path, output_dir, max_epoch=None):
+    import matplotlib.pyplot as plt
     df = pd.read_csv(log_path)
     if max_epoch:
         df = df[df["epoch"] <= max_epoch]
@@ -127,15 +138,36 @@ def plot_training_curves(log_path, output_dir, max_epoch=None):
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "training_curves.png"), dpi=300)
-    plt.show()
+    maybe_show()
 
 def main():
+    global SHOW_PLOTS
+
     p = argparse.ArgumentParser()
     p.add_argument("--checkpoint", type=str, required=True)
     p.add_argument("--output-dir", type=str, required=True)
     p.add_argument("--batch-size", type=int, default=32)
+    p.add_argument("--num-workers", type=int, default=2)
     p.add_argument("--log-path", type=str, default=None)
+    p.add_argument("--dataset-config", type=str, default="dataset_config.json",
+                    help="JSON file mapping dataset display names to {csv, dir}. "
+                         "See dataset_config.example.json for the expected format.")
+    p.add_argument("--no-show", action="store_true",
+                    help="Save plots without displaying them (use for headless/CI runs).")
     args = p.parse_args()
+
+    SHOW_PLOTS = not args.no_show
+    if args.no_show:
+        matplotlib.use("Agg")
+
+    if not os.path.exists(args.dataset_config):
+        logger.error(
+            f"Dataset config not found: {args.dataset_config}\n"
+            f"Copy dataset_config.example.json to dataset_config.json and update the "
+            f"paths for your own Google Drive layout, or pass --dataset-config explicitly."
+        )
+        raise SystemExit(1)
+    dataset_configs = load_dataset_configs(args.dataset_config)
 
     os.makedirs(args.output_dir, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -143,18 +175,19 @@ def main():
 
     roc_results = {}
 
-    for name, cfg in DATASET_CONFIGS.items():
-        print(f"\n--- {name} ---")
+    for name, cfg in dataset_configs.items():
+        logger.info(f"--- {name} ---")
         ds = TestDataset(cfg["csv"], cfg["dir"], TEST_TRANSFORM)
-        loader = DataLoader(ds, batch_size=args.batch_size, shuffle=False, num_workers=2)
+        loader = DataLoader(ds, batch_size=args.batch_size, shuffle=False,
+                            num_workers=args.num_workers)
 
         labels, scores, preds = get_predictions(model, loader, device)
-        
+
         acc = accuracy_score(labels, preds)
-        auc_score = roc_auc_score(labels, scores)
+        auc_score = compute_auc(labels, scores)
         tdr01 = compute_tdr(labels, scores, 0.1)
         tdr001 = compute_tdr(labels, scores, 0.01)
-        print(f"Acc: {acc:.4f}  AUC: {auc_score:.4f}  TDR@0.1: {tdr01:.4f}  TDR@0.01: {tdr001:.4f}")
+        logger.info(f"Acc: {acc:.4f}  AUC: {auc_score:.4f}  TDR@0.1: {tdr01:.4f}  TDR@0.01: {tdr001:.4f}")
 
         fpr, tpr, _ = roc_curve(labels, scores)
         roc_results[name] = {"fpr": fpr, "tpr": tpr, "auc": auc_score}
