@@ -180,7 +180,7 @@ pip install -r requirements-dev.txt
 pre-commit install
 ```
 
-Runs `ruff` automatically on each commit; `.github/dependabot.yml` keeps pinned dependencies and GitHub Actions up to date on a weekly schedule.
+Runs `ruff` automatically on each commit. Dependency versions in `requirements.txt`/`requirements-dev.txt` are pinned deliberately and bumped by hand — there is no automated dependency-update bot on this repo.
 
 ## Requirements
 
