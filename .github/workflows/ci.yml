@@ -22,6 +22,14 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          # CI runs on CPU-only runners. The default PyPI torch/torchvision wheels
+          # drag in the full NVIDIA CUDA toolkit (several GB) that isn't needed here
+          # and has previously exhausted the runner's disk ("No space left on device").
+          # Install the CPU-only build for exactly the versions pinned in
+          # requirements.txt first, then let the rest install normally -- pip sees
+          # torch/torchvision already satisfied and skips them.
+          pip install --index-url https://download.pytorch.org/whl/cpu \
+            $(grep -E '^(torch|torchvision)==' requirements.txt)
           pip install -r requirements-dev.txt
 
       - name: Lint
